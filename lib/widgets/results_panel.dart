@@ -80,29 +80,25 @@ class ResultsPanel extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 44),
-        Semantics(
-          button: true,
-          label: 'Reset',
-          child: ElevatedButton.icon(
-            key: const Key('reset_button'),
-            onPressed: onReset,
-            icon: const Icon(Icons.refresh_rounded, size: 20),
-            label: const Text('Reset'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              foregroundColor: AppColors.bg,
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-              textStyle: const TextStyle(
-                fontFamily: 'RobotoMono',
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              elevation: 0,
+        ElevatedButton.icon(
+          key: const Key('reset_button'),
+          onPressed: onReset,
+          icon: const Icon(Icons.refresh_rounded, size: 20),
+          label: const Text('Reset'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.accent,
+            foregroundColor: AppColors.bg,
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+            textStyle: const TextStyle(
+              fontFamily: 'RobotoMono',
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
             ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            elevation: 0,
           ),
         ),
       ],

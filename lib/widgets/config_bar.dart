@@ -134,6 +134,7 @@ class _ConfigToggleButtonState extends State<_ConfigToggleButton> {
       button: true,
       selected: widget.active,
       label: widget.label,
+      excludeSemantics: true,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
