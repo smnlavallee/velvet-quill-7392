@@ -123,11 +123,12 @@ class _WordDisplayState extends State<WordDisplay>
       onTap: widget.onTapArea,
       child: ConstrainedBox(
         constraints: const BoxConstraints(
-          minHeight: 132,
-          maxHeight: 176,
+          minHeight: 150,
+          maxHeight: 150,
         ),
         child: SingleChildScrollView(
           controller: _scrollController,
+          padding: const EdgeInsets.only(left: 3),
           physics: const ClampingScrollPhysics(),
           child: Semantics(
             key: const Key('word_display_semantics'),
