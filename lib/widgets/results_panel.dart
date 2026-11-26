@@ -22,12 +22,11 @@ class ResultsPanel extends StatelessWidget {
         : '${elapsedSeconds.round()}s';
 
     final modifiers = <String>[
+      session.language.label.toLowerCase(),
       if (session.includePunctuation) 'punctuation',
       if (session.includeNumbers) 'numbers',
     ];
-    final testTypeLabel = modifiers.isEmpty
-        ? 'words ${session.wordCount}'
-        : 'words ${session.wordCount} · ${modifiers.join(' + ')}';
+    final testTypeLabel = 'words ${session.wordCount} · ${modifiers.join(' + ')}';
 
     return Column(
       mainAxisSize: MainAxisSize.min,

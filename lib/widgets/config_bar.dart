@@ -1,7 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../engine/lorem_words.dart';
 import '../engine/typing_session.dart';
+import '../engine/word_bank.dart';
 import '../theme/app_colors.dart';
 
 class ConfigBar extends StatelessWidget {
@@ -55,12 +55,13 @@ class ConfigBar extends StatelessWidget {
               'words',
               style: TextStyle(
                 color: AppColors.sub,
-                fontSize: 13,
+                fontSize: 13.5,
+                height: 1.35,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ),
-          for (final count in LoremWords.wordCountPresets)
+          for (final count in WordBank.wordCountPresets)
             _ConfigToggleButton(
               buttonKey: Key('word_count_$count'),
               label: '$count',
@@ -150,6 +151,7 @@ class _ConfigToggleButtonState extends State<_ConfigToggleButton> {
               style: TextStyle(
                 fontFamily: 'RobotoMono',
                 fontSize: 13.5,
+                height: 1.35,
                 fontWeight: widget.active ? FontWeight.w600 : FontWeight.w500,
                 color: foreground,
               ),

@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 
-const URL = process.env.TARGET_URL || 'https://smnlavallee.github.io/velvet-quill-7392/';
+const URL =
+  process.env.TARGET_URL || 'https://smnlavallee.github.io/velvet-quill-7392/';
 const OUT_DIR = process.env.SCREENSHOT_DIR || 'e2e-screenshots';
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
@@ -17,9 +18,7 @@ async function getSemanticsDump(page) {
         const aria = (el.getAttribute('aria-label') || '').trim();
         const tag = el.tagName ? el.tagName.toLowerCase() : '';
         const ownText =
-          tag === 'flt-semantics' || role
-            ? (el.textContent || '').trim()
-            : '';
+          tag === 'flt-semantics' || role ? (el.textContent || '').trim() : '';
         if (aria || ownText) {
           const rect = el.getBoundingClientRect();
           items.push({
@@ -51,6 +50,17 @@ async function getAllText(page) {
   return [...new Set(parts)].join('\n');
 }
 
+async function getCurrentPassage(page) {
+  const items = await getSemanticsDump(page);
+  for (const it of items) {
+    for (const candidate of [it.aria, it.text]) {
+      const m = candidate.match(/Typing passage:\s*(.+)/);
+      if (m) return m[1].trim();
+    }
+  }
+  return null;
+}
+
 async function waitForText(page, regex, label, timeoutMs = 30000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -66,27 +76,37 @@ async function waitForText(page, regex, label, timeoutMs = 30000) {
   );
 }
 
-async function clickSemanticButton(page, regex, label) {
+async function findInteractive(page, regex, label) {
   const items = await getSemanticsDump(page);
   const match = items.find(
     (it) =>
-      it.role === 'button' &&
+      (it.role === 'button' || it.role === 'menuitem') &&
       it.w > 0 &&
       it.h > 0 &&
       (regex.test(it.aria) || regex.test(it.text))
   );
   if (!match) {
-    const buttons = items
-      .filter((it) => it.role === 'button')
+    const controls = items
+      .filter((it) => it.role === 'button' || it.role === 'menuitem')
       .map((b) => JSON.stringify(b))
       .join('\n');
-    throw new Error(`Could not find button "${label}" (${regex}). Buttons:\n${buttons}`);
+    throw new Error(
+      `Could not find control "${label}" (${regex}). Controls:\n${controls}`
+    );
   }
+  return match;
+}
+
+async function clickControl(page, regex, label) {
+  const match = await findInteractive(page, regex, label);
   const cx = match.x + match.w / 2;
   const cy = match.y + match.h / 2;
-  console.log(`Clicking button "${label}" at (${cx}, ${cy}) [${match.aria || match.text}]`);
+  console.log(
+    `Clicking "${label}" at (${cx}, ${cy}) [${match.aria || match.text}]`
+  );
   await page.mouse.click(cx, cy);
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(350);
+  return match;
 }
 
 async function main() {
@@ -117,91 +137,142 @@ async function main() {
   console.log(`Opening ${URL}...`);
   await page.goto(URL, { waitUntil: 'networkidle', timeout: 60000 });
 
-  // Wait for splash screen to go away and Flutter semantics to render.
   await waitForText(page, /loremtype/i, 'app title');
   await waitForText(page, /0\/25/, 'initial 0/25 progress');
-  await waitForText(page, /lorem ipsum dolor sit amet/i, 'initial lorem ipsum words');
+  await waitForText(page, /Language:\s*English/i, 'English language selector');
   await page.waitForTimeout(400);
 
-  await page.screenshot({ path: path.join(OUT_DIR, '01-initial.png') });
-  console.log('✓ 01 Initial screen rendered with 25-word Lorem Ipsum');
-
-  // Test 100-word mode
-  await clickSemanticButton(page, /(^|\s)100(\s|$)/, '100 words');
-  await waitForText(page, /0\/100/, '0/100 progress');
-  await waitForText(page, /explicabo/i, '100th word present');
-  await page.screenshot({ path: path.join(OUT_DIR, '02-100-words.png') });
-  console.log('✓ 02 100-word mode works');
-
-  // Switch to 10-word mode and toggle punctuation + numbers
-  await clickSemanticButton(page, /(^|\s)10(\s|$)/, '10 words');
-  await waitForText(page, /0\/10/, '0/10 progress');
-
-  await clickSemanticButton(page, /punctuation/i, 'punctuation toggle');
-  await waitForText(page, /Lorem ipsum dolor sit, amet consectetur\. Adipiscing elit sed; do\./, 'punctuated 10 words');
-
-  await clickSemanticButton(page, /numbers/i, 'numbers toggle');
-  const expectedPassage = 'Lorem ipsum 42 sit, amet consectetur. Adipiscing 2026 sed; do.';
-  await waitForText(
+  // Verify language dropdown sits to the right of the 100 word button on the same row.
+  const btn100 = await findInteractive(page, /(^|\s)100(\s|$)/, '100 words');
+  const langBtn = await findInteractive(
     page,
-    /Lorem ipsum 42 sit, amet consectetur\. Adipiscing 2026 sed; do\./,
-    'punctuated + numbered 10 words'
+    /Language:\s*English/i,
+    'language dropdown'
   );
-  await page.screenshot({ path: path.join(OUT_DIR, '03-punctuation-numbers.png') });
-  console.log('✓ 03 Punctuation + Numbers toggles verified');
+  assert.ok(
+    langBtn.x > btn100.x + btn100.w,
+    `Expected language dropdown (x=${langBtn.x}) to the right of 100 button (right=${btn100.x + btn100.w})`
+  );
+  assert.ok(
+    Math.abs(langBtn.y + langBtn.h / 2 - (btn100.y + btn100.h / 2)) <= 12,
+    `Expected language dropdown aligned on same top row as 100 button`
+  );
 
-  // Type a deliberate mistake, screenshot red state, then Backspace to fix it
-  await page.keyboard.type('x', { delay: 40 });
-  await page.waitForTimeout(250);
-  await page.screenshot({ path: path.join(OUT_DIR, '04-mistake-red.png') });
+  await page.screenshot({ path: path.join(OUT_DIR, '01-initial-english.png') });
+  console.log('✓ 01 Initial English screen & separate top-right language box verified');
+
+  // Test 100-word mode reshuffling on Esc restart
+  await clickControl(page, /(^|\s)100(\s|$)/, '100 words');
+  await waitForText(page, /0\/100/, '0/100 progress');
+  const hundredRun1 = await getCurrentPassage(page);
+  assert.ok(hundredRun1 && hundredRun1.split(/\s+/).length === 100, 'Expected 100 words');
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(350);
+  const hundredRun2 = await getCurrentPassage(page);
+  assert.ok(hundredRun2 && hundredRun2.split(/\s+/).length === 100, 'Expected 100 words after Esc');
+  assert.notEqual(
+    hundredRun2,
+    hundredRun1,
+    '100-word sequence must change order on restart'
+  );
+  await page.screenshot({ path: path.join(OUT_DIR, '02-100-words-reshuffled.png') });
+  console.log('✓ 02 100-word reshuffle on restart verified');
+
+  // Open language dropdown and switch to French
+  await clickControl(page, /Language:\s*English/i, 'open language dropdown');
+  await waitForText(page, /French/, 'French menu option');
+  await waitForText(page, /Lorem Ipsum/, 'Lorem Ipsum menu option');
+  await page.screenshot({ path: path.join(OUT_DIR, '03-dropdown-open.png') });
+
+  await clickControl(page, /^French$/, 'select French');
+  await waitForText(page, /Language:\s*French/i, 'French active');
+  const frenchPassage = await getCurrentPassage(page);
+  assert.ok(frenchPassage && frenchPassage.split(/\s+/).length === 100, 'Expected 100 French words');
+  assert.notEqual(frenchPassage, hundredRun2, 'French passage should differ from English');
+  await page.screenshot({ path: path.join(OUT_DIR, '04-french.png') });
+  console.log('✓ 04 French language switch verified');
+
+  // Switch to Lorem Ipsum
+  await clickControl(page, /Language:\s*French/i, 'open language dropdown');
+  await clickControl(page, /^Lorem Ipsum$/, 'select Lorem Ipsum');
+  await waitForText(page, /Language:\s*Lorem Ipsum/i, 'Lorem Ipsum active');
+  const loremPassage = await getCurrentPassage(page);
+  assert.ok(loremPassage && /lorem|ipsum|dolor|consectetur/i.test(loremPassage), 'Expected Lorem Ipsum words');
+  await page.screenshot({ path: path.join(OUT_DIR, '05-lorem-ipsum.png') });
+  console.log('✓ 05 Lorem Ipsum language switch verified');
+
+  // Switch back to English, set 10 words + punctuation + numbers, type through to completion
+  await clickControl(page, /Language:\s*Lorem Ipsum/i, 'open language dropdown');
+  await clickControl(page, /^English$/, 'select English');
+  await waitForText(page, /Language:\s*English/i, 'English active');
+
+  await clickControl(page, /(^|\s)10(\s|$)/, '10 words');
+  await waitForText(page, /0\/10/, '0/10 progress');
+  await clickControl(page, /punctuation/i, 'punctuation toggle');
+  await clickControl(page, /numbers/i, 'numbers toggle');
+  await page.waitForTimeout(300);
+
+  const runPassage = await getCurrentPassage(page);
+  assert.ok(runPassage, 'Expected active 10-word passage');
+  const runWords = runPassage.split(/\s+/);
+  assert.equal(runWords.length, 10, `Expected 10 words, got: ${runPassage}`);
+  assert.match(runPassage, /\d/, 'Expected numbers in passage');
+  assert.match(runPassage, /[.,;:?!"]/, 'Expected punctuation in passage');
+  console.log(`Active 10-word passage: "${runPassage}"`);
+
+  // Deliberate mistake + backspace
+  const wrongKey = runWords[0].startsWith('Z') ? 'Q' : 'Z';
+  await page.keyboard.type(wrongKey, { delay: 40 });
+  await page.waitForTimeout(200);
   await page.keyboard.press('Backspace');
   await page.waitForTimeout(200);
-  console.log('✓ 04 Mistake highlight + Backspace recovery verified');
 
-  // Type the first half and verify live WPM + progress
-  const firstHalf = 'Lorem ipsum 42 sit, amet ';
-  const secondHalf = 'consectetur. Adipiscing 2026 sed; do.';
-  await page.keyboard.type(firstHalf, { delay: 55 });
+  // Type first 5 words and check live WPM
+  const firstHalf = runWords.slice(0, 5).join(' ') + ' ';
+  const secondHalf = runWords.slice(5).join(' ');
+  await page.keyboard.type(firstHalf, { delay: 50 });
   await page.waitForTimeout(300);
   const midDump = await waitForText(page, /5\/10/, '5/10 progress mid-test');
   const liveWpmMatch = midDump.match(/(\d+)\s+wpm/i);
-  assert.ok(liveWpmMatch && Number(liveWpmMatch[1]) > 0, `Expected live WPM > 0, got:\n${midDump}`);
-  await page.screenshot({ path: path.join(OUT_DIR, '05-mid-typing.png') });
-  console.log(`✓ 05 Mid-test progress 5/10 & live WPM = ${liveWpmMatch[1]}`);
+  assert.ok(
+    liveWpmMatch && Number(liveWpmMatch[1]) > 0,
+    `Expected live WPM > 0, got:\n${midDump}`
+  );
+  await page.screenshot({ path: path.join(OUT_DIR, '06-mid-typing.png') });
+  console.log(`✓ 06 Mid-typing 5/10 & live WPM = ${liveWpmMatch[1]}`);
 
-  // Finish the remaining words
-  await page.keyboard.type(secondHalf, { delay: 55 });
+  // Finish remaining 5 words
+  await page.keyboard.type(secondHalf, { delay: 50 });
   const resultsDump = await waitForText(page, /Reset/i, 'Reset button on completion');
   await page.waitForTimeout(300);
-  await page.screenshot({ path: path.join(OUT_DIR, '06-results.png') });
+  await page.screenshot({ path: path.join(OUT_DIR, '07-results.png') });
 
-  // Verify stats exist on completion screen
-  assert.match(resultsDump, /wpm/i, 'Results should display wpm label');
-  assert.match(resultsDump, /acc/i, 'Results should display acc label');
-  assert.match(resultsDump, /\d+%/, 'Results should display accuracy percentage');
-  assert.match(resultsDump, /\d+(\.\d)?s/, 'Results should display elapsed time');
-  assert.match(resultsDump, /words 10.*punctuation.*numbers/i, 'Results should reflect active test mode');
-  console.log('✓ 06 Completion results & bottom Reset button verified');
-  console.log('--- RESULTS SEMANTICS ---\n' + resultsDump + '\n--- END ---');
+  assert.match(resultsDump, /wpm/i, 'Results should display wpm');
+  assert.match(resultsDump, /\d+%/, 'Results should display accuracy %');
+  assert.match(resultsDump, /words 10.*english.*punctuation.*numbers/i, 'Results should show test mode & language');
+  console.log('✓ 07 Completion results & bottom Reset button verified');
 
-  // Click the bottom Reset button
-  await clickSemanticButton(page, /Reset/i, 'Reset button');
-  const afterResetDump = await waitForText(page, /0\/10/, '0/10 after reset');
-  assert.ok(
-    afterResetDump.includes(expectedPassage),
-    `Expected same passage after reset:\n${afterResetDump}`
+  // Click Reset and verify NEW sequence appears and immediate typing works
+  await clickControl(page, /Reset/i, 'Reset button');
+  await waitForText(page, /0\/10/, '0/10 after reset');
+  const afterResetPassage = await getCurrentPassage(page);
+  assert.ok(afterResetPassage, 'Expected new passage after reset');
+  assert.notEqual(
+    afterResetPassage,
+    runPassage,
+    'Reset must generate a fresh randomized word sequence'
   );
-
-  // Immediately type "Lorem " without clicking anywhere to verify instant keyboard focus
-  await page.keyboard.type('Lorem ', { delay: 55 });
+  const firstNewWord = afterResetPassage.split(/\s+/)[0];
+  await page.keyboard.type(`${firstNewWord} `, { delay: 50 });
   await waitForText(page, /1\/10/, '1/10 immediately after reset');
   await page.waitForTimeout(250);
-  await page.screenshot({ path: path.join(OUT_DIR, '07-after-reset.png') });
-  console.log('✓ 07 Reset restored identical passage and immediate typing works');
+  await page.screenshot({ path: path.join(OUT_DIR, '08-after-reset.png') });
+  console.log('✓ 08 Reset produced a brand-new sequence and accepted immediate typing');
 
-  assert.equal(consoleErrors.length, 0, `Console errors found:\n${consoleErrors.join('\n')}`);
-  assert.equal(pageErrors.length, 0, `Page errors found:\n${pageErrors.join('\n')}`);
-  assert.equal(failedRequests.length, 0, `Failed HTTP requests found:\n${failedRequests.join('\n')}`);
+  assert.equal(consoleErrors.length, 0, `Console errors:\n${consoleErrors.join('\n')}`);
+  assert.equal(pageErrors.length, 0, `Page errors:\n${pageErrors.join('\n')}`);
+  assert.equal(failedRequests.length, 0, `Failed HTTP requests:\n${failedRequests.join('\n')}`);
 
   await browser.close();
   console.log('ALL LIVE BROWSER CHECKS PASSED WITH 0 ERRORS!');

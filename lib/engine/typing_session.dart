@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
-import 'lorem_words.dart';
+import 'word_bank.dart';
 
 enum TestStatus { idle, running, finished }
 
@@ -27,27 +27,33 @@ class CharacterStats {
 /// Pure state controller for the single-page Monkeytype-style typing test.
 class TypingSession extends ChangeNotifier {
   TypingSession({
+    TypingLanguage initialLanguage = TypingLanguage.english,
     int initialWordCount = 25,
     bool initialPunctuation = false,
     bool initialNumbers = false,
     DateTime Function()? clock,
-  })  : _wordCount = initialWordCount.clamp(1, LoremWords.maxWords),
+    math.Random? random,
+  })  : _language = initialLanguage,
+        _wordCount = initialWordCount.clamp(1, WordBank.maxWords),
         _includePunctuation = initialPunctuation,
         _includeNumbers = initialNumbers,
-        _clock = clock ?? DateTime.now {
+        _clock = clock ?? DateTime.now,
+        _random = random ?? math.Random() {
     _rebuildWords();
   }
 
   static const int maxExtraCharsPerWord = 12;
 
   final DateTime Function() _clock;
+  final math.Random _random;
 
+  TypingLanguage _language;
   int _wordCount;
   bool _includePunctuation;
   bool _includeNumbers;
 
-  late List<String> _words;
-  late List<String> _typedWords;
+  List<String> _words = const <String>[];
+  List<String> _typedWords = const <String>[];
   int _currentWordIndex = 0;
   TestStatus _status = TestStatus.idle;
   DateTime? _startTime;
@@ -57,6 +63,7 @@ class TypingSession extends ChangeNotifier {
   int _inputRevision = 0;
   Timer? _ticker;
 
+  TypingLanguage get language => _language;
   int get wordCount => _wordCount;
   bool get includePunctuation => _includePunctuation;
   bool get includeNumbers => _includeNumbers;
@@ -160,8 +167,16 @@ class TypingSession extends ChangeNotifier {
     return _typedWords[index] != _words[index];
   }
 
+  void setLanguage(TypingLanguage next) {
+    if (next == _language && _status == TestStatus.idle) {
+      return;
+    }
+    _language = next;
+    reset();
+  }
+
   void setWordCount(int count) {
-    final next = count.clamp(1, LoremWords.maxWords);
+    final next = count.clamp(1, WordBank.maxWords);
     if (next == _wordCount && _status == TestStatus.idle) {
       return;
     }
@@ -281,10 +296,13 @@ class TypingSession extends ChangeNotifier {
   }
 
   void _rebuildWords() {
-    _words = LoremWords.generate(
+    _words = WordBank.generate(
+      language: _language,
       count: _wordCount,
       includePunctuation: _includePunctuation,
       includeNumbers: _includeNumbers,
+      previousWords: _words.isEmpty ? null : _words,
+      random: _random,
     );
     _typedWords = List<String>.filled(_words.length, '');
   }

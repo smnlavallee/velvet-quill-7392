@@ -1,9 +1,10 @@
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../engine/typing_session.dart';
 import '../theme/app_colors.dart';
 import '../widgets/config_bar.dart';
+import '../widgets/language_dropdown.dart';
 import '../widgets/results_panel.dart';
 import '../widgets/word_display.dart';
 
@@ -43,6 +44,14 @@ class _TypingPageState extends State<TypingPage> {
   }
 
   bool _handleHardwareKey(KeyEvent event) {
+    if (!mounted) {
+      return false;
+    }
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) {
+      return false;
+    }
+
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return false;
     }
@@ -129,9 +138,21 @@ class _TypingPageState extends State<TypingPage> {
                         _buildHeader(),
                         const SizedBox(height: 24),
                         Center(
-                          child: ConfigBar(
-                            session: _session,
-                            onOptionChanged: _refocusTyping,
+                          child: Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: <Widget>[
+                              ConfigBar(
+                                session: _session,
+                                onOptionChanged: _refocusTyping,
+                              ),
+                              LanguageDropdown(
+                                session: _session,
+                                onOptionChanged: _refocusTyping,
+                              ),
+                            ],
                           ),
                         ),
                         Expanded(
@@ -186,7 +207,7 @@ class _TypingPageState extends State<TypingPage> {
             ),
             SizedBox(height: 2),
             Text(
-              'lorem ipsum typing test',
+              'typing speed test',
               style: TextStyle(
                 fontFamily: 'RobotoMono',
                 fontSize: 11,
