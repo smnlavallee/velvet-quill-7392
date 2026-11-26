@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Minimalist Monkeytype-style Lorem Ipsum typing speed test.">
+  <meta name="theme-color" content="#323437">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="loremtype">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+
+  <title>loremtype — Typing Test</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #323437;
+      color: #d1d0c5;
+      overflow: hidden;
+    }
+    #loading-splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #323437;
+      font-family: monospace;
+      font-size: 16px;
+      color: #646669;
+      letter-spacing: 0.08em;
+      z-index: 9999;
+      transition: opacity 0.2s ease-out;
+    }
+    #loading-splash span {
+      color: #e2b714;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-splash"><span>|</span>loading loremtype...</div>
+  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var splash = document.getElementById('loading-splash');
+      if (splash) {
+        splash.style.opacity = '0';
+        setTimeout(function () {
+          splash.remove();
+        }, 220);
+      }
+    });
+  </script>
+</body>
+</html>
